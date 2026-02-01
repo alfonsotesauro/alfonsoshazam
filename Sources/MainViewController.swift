@@ -220,11 +220,12 @@ class MainViewController: NSViewController, SHSessionDelegate {
                     )
                 }
                 
-                // Calculate buffer size (process up to max recognition duration)
-                let maxFrames = min(AVAudioFrameCount(audioFile.length), AVAudioFrameCount(self.maxRecognitionDuration * format.sampleRate))
+                // Calculate buffer size (process up to max recognition duration using original file sample rate)
+                let maxInputFrames = min(AVAudioFrameCount(audioFile.length), AVAudioFrameCount(self.maxRecognitionDuration * audioFile.processingFormat.sampleRate))
+                let maxOutputFrames = AVAudioFrameCount(self.maxRecognitionDuration * format.sampleRate)
                 
-                // Create input buffer with the original file format
-                guard let inputBuffer = AVAudioPCMBuffer(pcmFormat: audioFile.processingFormat, frameCapacity: AVAudioFrameCount(audioFile.length)) else {
+                // Create input buffer with the original file format (only allocate what we need)
+                guard let inputBuffer = AVAudioPCMBuffer(pcmFormat: audioFile.processingFormat, frameCapacity: maxInputFrames) else {
                     throw NSError(
                         domain: "com.alfonsoshazam",
                         code: 3,
@@ -232,11 +233,11 @@ class MainViewController: NSViewController, SHSessionDelegate {
                     )
                 }
                 
-                // Read audio file into input buffer
-                try audioFile.read(into: inputBuffer)
+                // Read audio file into input buffer (only read up to maxInputFrames)
+                try audioFile.read(into: inputBuffer, frameCount: maxInputFrames)
                 
                 // Create output buffer with the target format
-                guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: maxFrames) else {
+                guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: maxOutputFrames) else {
                     throw NSError(
                         domain: "com.alfonsoshazam",
                         code: 4,
