@@ -20,13 +20,13 @@ A macOS application that uses ShazamKit to recognize music files stored on disk.
 ### Using Xcode
 
 1. Open Terminal and navigate to the project directory
-2. Generate the Xcode project:
+2. Open the project in Xcode:
    ```bash
-   swift package generate-xcodeproj
+   xed .
    ```
-3. Open the generated `.xcodeproj` file in Xcode
-4. Select the "AlfonsosShazam" scheme
-5. Build and run (⌘R)
+   Or use File > Open in Xcode and select the `Package.swift` file
+3. Select the "AlfonsosShazam" scheme
+4. Build and run (⌘R)
 
 ### Using Swift Package Manager
 

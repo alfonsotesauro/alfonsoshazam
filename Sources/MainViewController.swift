@@ -15,6 +15,9 @@ class MainViewController: NSViewController, SHSessionDelegate {
     // ShazamKit
     private var session: SHSession?
     
+    // Constants
+    private let maxRecognitionDuration: TimeInterval = 30.0
+    
     override func loadView() {
         self.view = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 500))
     }
@@ -217,42 +220,51 @@ class MainViewController: NSViewController, SHSessionDelegate {
                     )
                 }
                 
-                // Calculate buffer size (process up to 30 seconds)
-                let maxFrames = min(AVAudioFrameCount(audioFile.length), AVAudioFrameCount(30 * format.sampleRate))
+                // Calculate buffer size (process up to max recognition duration)
+                let maxFrames = min(AVAudioFrameCount(audioFile.length), AVAudioFrameCount(self.maxRecognitionDuration * format.sampleRate))
                 
-                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: maxFrames) else {
+                // Create input buffer with the original file format
+                guard let inputBuffer = AVAudioPCMBuffer(pcmFormat: audioFile.processingFormat, frameCapacity: AVAudioFrameCount(audioFile.length)) else {
                     throw NSError(
                         domain: "com.alfonsoshazam",
                         code: 3,
-                        userInfo: [NSLocalizedDescriptionKey: "Failed to create audio buffer"]
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to create input audio buffer"]
                     )
                 }
                 
-                // Read and convert audio
-                try audioFile.read(into: buffer, frameCount: maxFrames)
+                // Read audio file into input buffer
+                try audioFile.read(into: inputBuffer)
                 
-                var error: NSError?
-                let inputBlock: AVAudioConverterInputBlock = { inNumPackets, outStatus in
-                    outStatus.pointee = .haveData
-                    return buffer
-                }
-                
-                guard let convertedBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: maxFrames) else {
+                // Create output buffer with the target format
+                guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: maxFrames) else {
                     throw NSError(
                         domain: "com.alfonsoshazam",
                         code: 4,
-                        userInfo: [NSLocalizedDescriptionKey: "Failed to create converted buffer"]
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to create output audio buffer"]
                     )
                 }
                 
-                converter.convert(to: convertedBuffer, error: &error, withInputFrom: inputBlock)
+                // Convert audio from input buffer to output buffer
+                var error: NSError?
+                var inputUsed = false
+                let inputBlock: AVAudioConverterInputBlock = { inNumPackets, outStatus in
+                    if inputUsed {
+                        outStatus.pointee = .noDataNow
+                        return nil
+                    }
+                    inputUsed = true
+                    outStatus.pointee = .haveData
+                    return inputBuffer
+                }
+                
+                converter.convert(to: outputBuffer, error: &error, withInputFrom: inputBlock)
                 
                 if let error = error {
                     throw error
                 }
                 
-                // Generate signature
-                let signature = try SHSignatureGenerator().append(convertedBuffer, at: nil)
+                // Generate signature from converted audio
+                let signature = try SHSignatureGenerator().append(outputBuffer, at: nil)
                 
                 // Match signature
                 DispatchQueue.main.async {
